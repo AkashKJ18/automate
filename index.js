@@ -1,52 +1,72 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
 require('dotenv').config();
+const express = require('express');
+const crypto = require('crypto');
+const axios = require('axios');
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json({ verify: verifySignature }));
+
+function verifySignature(req, res, buf) {
+  const signature = req.headers['x-hub-signature-256'];
+  const hmac = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET);
+  hmac.update(buf);
+  const digest = `sha256=${hmac.digest('hex')}`;
+  if (signature !== digest) {
+    throw new Error('Invalid signature');
+  }
+}
 
 app.post('/webhook', async (req, res) => {
-  console.log(req);
-  const token = req.headers['x-gitlab-token'];
-  if (token !== process.env.ENV) {
-    return res.status(403).send('Invalid token');
+  const event = req.headers['x-github-event'];
+  const payload = req.body;
+
+  if (event === 'pull_request' && payload.action === 'opened') {
+    const { number: prNumber, base, head } = payload.pull_request;
+    const owner = payload.repository.owner.login;
+    const repo = payload.repository.name;
+
+    // Fetch PR diff
+    const diffRes = await axios.get(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github.v3.diff',
+        },
+      }
+    );
+
+    const prompt = `You are a senior software engineer. Please review the following GitHub Pull Request diff:\n${diffRes.data}`;
+
+    // Send to Gemini
+    const geminiRes = await axios.post(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+      },
+      {
+        params: { key: process.env.GEMINI },
+      }
+    );
+
+    const review = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    // Post review as PR comment
+    await axios.post(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`,
+      { body: `🤖 AI Review:\n\n${review}` },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    );
+
+    res.sendStatus(200);
+  } else {
+    res.sendStatus(200);
   }
-
-  const { object_attributes, project } = req.body;
-  if (object_attributes.state !== 'opened') return res.sendStatus(200);
-
-  const mrIid = object_attributes.iid;
-
-  // Fetch MR changes
-  const changes = await axios.get(
-    `http://repo.axxsoln.in/api/v4/projects/48/merge_requests/${mrIid}/changes`,
-    { headers: { 'PRIVATE-TOKEN': process.env.SECRET } }
-  );
-
-  const diff = changes.data.changes.map(c => `File: ${c.new_path}\n${c.diff}`).join('\n\n');
-
-  // Send to Gemini
-  const prompt = `You are a senior software engineer. Please review the following GitLab Merge Request diff:\n${diff}`;
-
-  const geminiRes = await axios.post(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
-    {
-      contents: [{ parts: [{ text: prompt }] }]
-    },
-    { params: { key: process.env.GEMINI } }
-  );
-
-  const review = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  // Post review back to MR
-  await axios.post(
-    `http://repo.axxsoln.in/api/v4/projects/48/merge_requests/${mrIid}/notes`,
-    { body: `🤖 AI Review:\n\n${review}` },
-    { headers: { 'PRIVATE-TOKEN': process.env.SECRET } }
-  );
-
-  res.sendStatus(200);
 });
 
 app.listen(8000, () => console.log('Listening on port 8000'));
