@@ -25,6 +25,20 @@ app.post('/webhook', async (req, res) => {
     const owner = payload.repository.owner.login;
     const repo = payload.repository.name;
 
+    axios.get(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          Accept: 'application/vnd.github+json',
+        },
+      }
+    ).then(res => {
+      console.log('✅ PR Fetched:', res.data.title);
+    }).catch(err => {
+      console.error('❌ Failed:', err.response?.status, err.response?.data?.message);
+    });
+
     try {
       // Fetch PR diff
       const diffRes = await axios.get(
