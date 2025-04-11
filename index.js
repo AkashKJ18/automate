@@ -17,8 +17,6 @@ function verifySignature(req, res, buf) {
 }
 
 app.post('/webhook', async (req, res) => {
-  console.log(req);
-
   const event = req.headers['x-github-event'];
   const payload = req.body;
 
@@ -26,10 +24,6 @@ app.post('/webhook', async (req, res) => {
     const { number: prNumber } = payload.pull_request;
     const owner = payload.repository.owner.login;
     const repo = payload.repository.name;
-
-    console.log("Owner:", owner);
-    console.log("Repo:", repo);
-    console.log("PR Number:", prNumber);
 
     try {
       // Fetch PR diff
@@ -76,11 +70,11 @@ ${diffRes.data}
         }
       );
 
+      console.log(geminiRes);
+
+
       const review = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '⚠️ No review content received from Gemini.';
 
-      console.log("Owner:", owner);
-      console.log("Repo:", repo);
-      console.log("PR Number:", prNumber);
       // Post review as PR comment
       await axios.post(
         `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`,
