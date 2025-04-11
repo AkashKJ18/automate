@@ -40,19 +40,24 @@ app.post('/webhook', async (req, res) => {
       const prompt = `
 You are a senior software engineer and expert code reviewer.
 
-Please review the following GitHub Pull Request diff in detail. Your response should include:
+A developer has submitted the following code changes as a Pull Request. You are to act as a code reviewer and respond with detailed review with:
 
-1. A **summary** of the PR.
-2. **Critical issues** (bugs, security concerns, or logic errors).
-3. **Suggestions for improvement** (refactoring, naming, readability).
-4. **Line-by-line comments** in the format:
-   [filename] Line X: Your comment.
+1. A short summary of what the code seems to do.
+2. Critical issues (bugs, security flaws, logic errors).
+3. Suggestions for improvement (performance, readability, naming, structure).
+4. Inline comments with file and line numbers in this format:
 
-Be clear, constructive, and professional.
+[filename] Line X:
+Your detailed comment explaining the issue or suggestion.
 
-Here is the PR diff:
+Do not summarize the whole diff in one sentence. Give feedback on specific code blocks where relevant.
+
+Here is the full diff:
+\`\`\`diff
 ${diffRes.data}
+\`\`\`
 `;
+
 
       // Send to Gemini
       const geminiRes = await axios.post(
