@@ -70,6 +70,8 @@ ${diffRes.data}
         }
       );
 
+      console.log(JSON.stringify(geminiRes.data, null, 2));
+
       const review = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text || '⚠️ No review content received from Gemini.';
 
       // Post review as PR comment
