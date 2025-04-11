@@ -15,7 +15,13 @@ function verifySignature(req, res, buf) {
     throw new Error('Invalid signature');
   }
 }
-
+console.log('hi');
+console.log('hi');
+console.log('hi');
+console.log('hi');
+console.log('hi');
+console.log('hi');
+console.log('hi');
 
 
 
