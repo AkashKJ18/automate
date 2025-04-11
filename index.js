@@ -41,15 +41,25 @@ app.post('/webhook', async (req, res) => {
 
     try {
       // Fetch PR diff
-      const diffRes = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
+      const changesRes = await axios.get(
+        `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files`,
         {
           headers: {
             Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-            Accept: 'application/vnd.github.v3.diff',
+            Accept: 'application/vnd.github+json',
           },
         }
       );
+
+      console.log(changesRes);
+
+
+      const diff = changesRes.data.map(file => {
+        return `File: ${file.filename}\nChanges: ${file.patch || '[No diff]'}`;
+      }).join('\n\n');
+
+      console.log(diff);
+
 
       const prompt = `
 You are a senior software engineer and expert code reviewer.
@@ -68,7 +78,7 @@ Do not summarize the whole diff in one sentence. Give feedback on specific code 
 
 Here is the full diff:
 \`\`\`diff
-${diffRes.data}
+${diff.data}
 \`\`\`
 `;
 
